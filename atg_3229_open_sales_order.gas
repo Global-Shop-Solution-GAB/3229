@@ -1,0 +1,164 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+
+Program.Sub.Main.Start
+'Coded by: MLA
+'Project Start Date: 11/29/2010
+'Notes:
+'  GKD
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.Ppass,7200)
+F.Intrinsic.Control.CallSub(Load)
+
+Program.Sub.Main.End
+
+
+Program.Sub.Unload.Start
+F.ODBC.Connection!con.Close
+f.Intrinsic.Control.End
+
+Program.Sub.Unload.End
+
+
+Program.Sub.Load.Start
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+V.Local.sOrd.Declare(String)
+V.Local.sLine.Declare(String)
+V.Local.sJob.Declare(String)
+V.Local.sSuf.Declare(String)
+V.Local.sUsr2.Declare(String)
+V.Local.sUsr3.Declare(String)
+V.Local.sCust.Declare(String)
+V.Local.dDate.Declare(Date)
+V.Local.fQty.Declare(Float)
+V.Local.sWC.Declare(String)
+V.Local.fAHrs.Declare(Float)
+V.Local.fEHrs.Declare(Float)
+V.Local.fRHrs.Declare(Float)
+V.Local.sPL.Declare(String)
+V.Local.iBi.Declare(Long)
+V.Local.sParam.Declare(String)
+V.Local.sParamVal.Declare(String)
+
+Function.Intrinsic.Control.SetErrorHandler("Load_Err")
+Function.Intrinsic.Control.ClearErrors
+
+F.Intrinsic.Control.CallSub(Recchk)
+V.Local.sSql.Set("Select ORDER_NO, RECORD_NO, USER_2, USER_3 from V_ORDER_LINES where QTY_ORDERED > QTY_SHIPPED")
+F.ODBC.Connection!con.OpenRecordsetRO("rstOrd",V.Local.sSql)
+F.Intrinsic.Control.If(V.ODBC.con!rstOrd.EOF,=,"True")
+F.Intrinsic.Control.Else
+	F.ODBC.Connection!con.OpenRecordsetRW("rstWrite","Select * from ATG_3229_OPEN_SO")
+	F.Intrinsic.Control.DoUntil(V.ODBC.con!rstORd.EOF,=,"True")
+		V.Local.sOrd.Set(V.ODBC.con!rstOrd.FieldValTrim!ORDER_NO)
+		V.Local.sLine.Set(V.ODBC.con!rstOrd.FieldValTrim!RECORD_NO)
+		V.Local.sUsr2.Set(V.ODBC.con!rstOrd.FieldValTrim!USER_2)
+		V.Local.sUsr3.Set(V.ODBC.con!rstOrd.FieldValTrim!USER_3)
+		F.Intrinsic.String.Concat("Select JOB, SUFFIX, ORDER_NO, ORDER_LINE from V_ORDER_TO_WO where ORDER_NO = '",V.Local.sOrd,"' and ORDER_LINE = '",V.Local.sLine,"'",V.Local.sSql)
+		F.ODBC.Connection!con.OpenRecordsetRO("rst",V.Local.sSql)
+		F.Intrinsic.Control.If(V.ODBC.con!rst.EOF,=,"True")
+			F.ODBC.con!rst.Close
+		F.Intrinsic.Control.Else
+			V.Local.sJob.Set(V.ODBC.con!rst.FieldValTrim!JOB)
+			V.Local.sSuf.Set(V.ODBC.con!rst.FieldValTrim!SUFFIX)
+			F.ODBC.con!rst.Close
+			F.Intrinsic.String.Concat("Select JOB, SUFFIX, CUSTOMER, DATE_DUE, QTY_ORDER, PRODUCT_LINE from V_JOB_HEADER where JOB = '",V.Local.sJob,"' and SUFFIX = '",V.Local.sSuf,"'",V.Local.sSql)
+			F.ODBC.Connection!con.OpenRecordsetRO("rst",V.Local.sSql)
+			F.Intrinsic.Control.If(V.ODBC.con!rst.EOF,=,False)
+				V.Local.sCust.Set(V.ODBC.con!rst.FieldValTrim!CUSTOMER)
+				V.Local.fQty.Set(V.ODBC.con!rst.FieldValFloat!QTY_ORDER)
+				V.Local.dDate.Set(V.ODBC.con!rst.FieldVal!DATE_DUE)
+				V.Local.sPL.Set(V.ODBC.con!rst.FieldValTrim!PRODUCT_LINE)
+				F.ODBC.con!rst.Close
+				F.Intrinsic.String.Concat("Select CUSTOMER, NAME_CUSTOMER from V_CUSTOMER_MASTER WHERE CUSTOMER = '",V.Local.sCust,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenRecordsetRO("rst",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rst.EOF,=,"True")
+					V.Local.sCust.Set("No Customer record")
+				F.Intrinsic.Control.Else
+					V.Local.sCust.Set(V.ODBC.con!rst.FieldValTrim!NAME_CUSTOMER)
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rst.Close
+				F.Intrinsic.String.Concat("Select JOB, SUFFIX, SEQ, WORKCENTER FROM V_JOB_OPERATIONS_WC WHERE JOB = '",V.Local.sJob,"' AND SUFFIX = '",V.Local.sSuf,"' AND LMO LIKE '%L' AND FLAG_CLOSED = '' ORDER BY SEQ",V.Local.sSql)
+				F.ODBC.Connection!con.OpenRecordsetRO("rst",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rst.EOF,=,"True")
+				F.Intrinsic.Control.Else
+					V.Local.sWC.Set(V.ODBC.con!rst.FieldValTrim!WORKCENTER)
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rst.Close
+				F.Intrinsic.String.Concat("Select JOB, SUFFIX, SEQ, HOURS_ACTUAL, HOURS_ESTIMATED from V_JOB_OPERATIONS WHERE JOB = '",V.Local.sJob,"' AND SUFFIX = '",V.Local.sSuf,"' AND LMO = 'L'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenRecordsetRO("rst",V.Local.sSql)
+				F.Intrinsic.Control.DoUntil(V.ODBC.con!rst.EOF,=,"True")
+					F.Intrinsic.Math.Add(V.Local.fAHrs,V.ODBC.con!rst.FieldValFloat!HOURS_ACTUAL,V.Local.fAHrs)
+					F.Intrinsic.Math.Add(V.Local.fEHrs,V.ODBC.con!rst.FieldValFloat!HOURS_ESTIMATED,V.Local.fEHrs)
+					F.ODBC.con!rst.MoveNext
+				F.Intrinsic.Control.Loop
+				F.ODBC.con!rst.Close
+			F.intrinsic.Control.EndIf
+			F.Intrinsic.Math.Sub(V.Local.fEHrs,V.Local.fAHrs,V.Local.fRHrs)
+			F.ODBC.con!rstWrite.AddNew
+			F.ODBC.con!rstWrite.Set!TRMNL(V.Caller.Terminal)
+			F.ODBC.con!rstWrite.Set!ORDER_NO(V.Local.sOrd)
+			F.ODBC.con!rstWrite.Set!ORDER_LINE(V.Local.sLine)
+			F.ODBC.con!rstWrite.Set!JOB(V.Local.sJob)
+			F.ODBC.con!rstWrite.Set!SUFFIX(V.Local.sSuf)
+			F.ODBC.con!rstWrite.Set!WORKCENTER(V.Local.sWC)
+			F.ODBC.con!rstWrite.Set!NAME_CUSTOMER(V.Local.sCust)
+			F.ODBC.con!rstWrite.Set!HOURS_ACTUAL(V.Local.fAHrs)
+			F.ODBC.con!rstWrite.Set!HOURS_REMAINING(V.Local.fRHrs)
+			F.ODBC.con!rstWrite.Set!USER_2(V.Local.sUsr2)
+			F.ODBC.con!rstWrite.Set!USER_3(V.Local.sUsr3)
+			F.ODBC.con!rstWrite.Set!DATE_DUE(V.Local.dDate.PervasiveDate)
+			F.ODBC.con!rstWrite.Set!QTY_ORDER(V.Local.fQty)
+			F.ODBC.con!rstWrite.Set!PRODUCT_LINE(V.Local.sPL)
+			F.ODBC.con!rstWrite.Update
+		F.Intrinsic.Control.EndIf
+		F.ODBC.con!rstOrd.MoveNext
+	F.Intrinsic.Control.Loop
+F.Intrinsic.Control.EndIf
+F.ODBC.con!rstOrd.Close
+F.Global.BI.GetIDFromName("GKD_Open_Sales_Order.rpt",V.Local.iBi)
+V.Local.sParam.Set("Terminal")
+V.Local.sParamVal.Set(V.Caller.Terminal)
+F.Global.BI.PrintReport(V.Local.iBi,0,V.Local.sParam,V.Local.sParamVal,"",False)
+F.Intrinsic.Control.CallSub(Unload)
+
+Function.Intrinsic.Control.ExitSub
+
+Function.Intrinsic.Control.Label("Load_Err")
+Function.Intrinsic.Control.If(Variable.Ambient.ErrorNumber,"<>",0)
+	Function.Intrinsic.String.Concat("Error Occurred ",Variable.Ambient.ErrorNumber," with description ",Variable.Ambient.ErrorDescription,Variable.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Load.End
+
+
+Program.Sub.RecChk.Start
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+
+Function.Intrinsic.Control.SetErrorHandler("RecChk_Err")
+Function.Intrinsic.Control.ClearErrors
+
+F.Intrinsic.String.Concat("Delete ATG_3229_OPEN_SO where TRMNL = '",V.Caller.Terminal,"'",V.Local.sSql)
+F.ODBC.Connection!con.Execute(V.Local.sSql)
+
+Function.Intrinsic.Control.ExitSub
+
+Function.Intrinsic.Control.Label("RecChk_Err")
+Function.Intrinsic.Control.If(Variable.Ambient.ErrorNumber,"<>",0)
+	Function.Intrinsic.String.Concat("Error Occurred ",Variable.Ambient.ErrorNumber," with description ",Variable.Ambient.ErrorDescription,Variable.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+
+Program.Sub.RecChk.End
+
+
+
